@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pitchline AI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { background:#0B1210; }
+  .font-display { font-family:'Space Grotesk',sans-serif; }
+  .font-body { font-family:'Inter',sans-serif; }
+  .font-mono { font-family:'IBM Plex Mono',monospace; }
+  @keyframes scroll { from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  .ticker { animation: scroll 25s linear infinite; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+/* ---- simple inline SVG icons (no external icon lib needed) ---- */
+const Icon = ({ d, size = 16, className = "", strokeWidth = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d={d} />
+  </svg>
+);
+const FlameIcon = (p) => <Icon {...p} d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />;
+const ShieldIcon = (p) => <Icon {...p} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;
+const TrendIcon = (p) => <Icon {...p} d="M23 6l-9.5 9.5-5-5L1 18M17 6h6v6" />;
+const UsersIcon = (p) => <Icon {...p} d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />;
+const ChevDownIcon = (p) => <Icon {...p} d="M6 9l6 6 6-6" />;
+const ChevRightIcon = (p) => <Icon {...p} d="M9 18l6-6-6-6" />;
+const SearchIcon = (p) => <Icon {...p} d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35" />;
+const BellIcon = (p) => <Icon {...p} d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />;
+const MoonIcon = (p) => <Icon {...p} d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />;
+const ActivityIcon = (p) => <Icon {...p} d="M22 12h-4l-3 9L9 3l-3 9H2" />;
+const TargetIcon = (p) => <Icon {...p} d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />;
+const AlertIcon = (p) => <Icon {...p} d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />;
+
+/* ---------------- deterministic pseudo-prediction (placeholder until a real ML model is connected) ---------------- */
+function hashSeed(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+function seededRand(seed) {
+  let s = seed % 2147483647;
+  return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+}
+function buildPrediction(fixture) {
+  const rnd = seededRand(hashSeed(fixture.home + fixture.away));
+  const homeEdge = 0.30 + rnd() * 0.25;
+  const awayEdge = 0.20 + rnd() * 0.25;
+  const drawRaw = 1 - homeEdge - awayEdge;
+  const draw = Math.max(0.12, drawRaw);
+  const total = homeEdge + draw + awayEdge;
+  const probs = {
+    home: Math.round((homeEdge / total) * 100),
+    draw: Math.round((draw / total) * 100),
+    away: Math.round((awayEdge / total) * 100),
+  };
+  const diff = 100 - (probs.home + probs.draw + probs.away);
+  probs.home += diff;
+  const xgHome = +(0.9 + rnd() * 1.4).toFixed(1);
+  const xgAway = +(0.7 + rnd() * 1.3).toFixed(1);
+  const confidence = Math.round(45 + rnd() * 35);
+  const risk = confidence > 70 ? "Low" : confidence > 55 ? "Medium" : "High";
+  const scoreOptions = ["1-0","1-1","2-1","0-0","2-0","1-2","0-1","2-2","3-1"];
+  const scores = scoreOptions
+    .map((s) => ({ s, p: +(4 + rnd() * 10).toFixed(1) }))
+    .sort((a, b) => b.p - a.p)
+    .slice(0, 5);
+  const form = () => Array.from({ length: 5 }, () => ["W","D","L"][Math.floor(rnd() * 3)]);
+  return {
+    ...fixture,
+    probs, xg: { home: xgHome, away: xgAway }, confidence, risk,
+    scores,
+    goals: { o25: Math.round(40 + rnd() * 40), btts: Math.round(35 + rnd() * 40) },
+    form: { home: form(), away: form() },
+    keyPlayers: [`${fixture.home} — form under review`, `${fixture.away} — form under review`],
+    explanation: `Preliminary statistical estimate for ${fixture.home} vs ${fixture.away}, generated from a placeholder model until a trained ML pipeline is connected. Treat these numbers as illustrative, not analytical.`,
+  };
+}
+
+/* ---------------- fallback demo data (used only if the live API call fails) ---------------- */
+const MATCHES_FALLBACK = [
+  { id:1, league:"Premier League", home:"Arsenal", away:"Man City", homeShort:"ARS", awayShort:"MCI",
+    kickoff:"Today · 20:00", probs:{home:38,draw:26,away:36}, confidence:62, xg:{home:1.7,away:1.9},
+    scores:[{s:"1-1",p:11.2},{s:"1-2",p:9.8},{s:"2-1",p:8.6},{s:"0-1",p:7.9},{s:"1-0",p:7.4}],
+    goals:{o25:58,btts:64}, form:{home:["W","W","D","W","L"],away:["W","D","W","W","W"]}, risk:"Medium",
+    keyPlayers:["Saka (xA 0.41/90)","Haaland (xG 0.87/90)"],
+    explanation:"Arsenal's home xG has outperformed City's away xG across the last six meetings at the Emirates. City are missing a first-choice centre-back, which nudges the model toward a tighter scoreline than the market implies. Draw probability is elevated by both sides' recent tendency to control tempo rather than force the issue early." },
+  { id:2, league:"La Liga", home:"Real Madrid", away:"Girona", homeShort:"RMA", awayShort:"GIR",
+    kickoff:"Today · 22:00", probs:{home:64,draw:21,away:15}, confidence:78, xg:{home:2.3,away:0.9},
+    scores:[{s:"2-1",p:13.4},{s:"2-0",p:12.1},{s:"3-1",p:8.7},{s:"1-0",p:8.2},{s:"1-1",p:6.9}],
+    goals:{o25:71,btts:55}, form:{home:["W","W","W","D","W"],away:["L","W","L","D","L"]}, risk:"Low",
+    keyPlayers:["Bellingham (rating 8.1 avg)","Dovbyk (fitness 74%)"],
+    explanation:"Madrid are unbeaten in nine at home this season and Girona arrive with three of their back four rotated through injury. Fixture congestion for the visitors — third match in eight days — is weighted into the fatigue factor, pulling their expected output down further." },
+  { id:3, league:"Serie A", home:"Inter", away:"Juventus", homeShort:"INT", awayShort:"JUV",
+    kickoff:"Tomorrow · 19:45", probs:{home:41,draw:30,away:29}, confidence:54, xg:{home:1.5,away:1.3},
+    scores:[{s:"1-0",p:10.8},{s:"1-1",p:10.3},{s:"0-0",p:8.5},{s:"2-1",p:7.6},{s:"1-2",p:6.1}],
+    goals:{o25:46,btts:49}, form:{home:["W","D","W","W","D"],away:["D","W","D","L","W"]}, risk:"High",
+    keyPlayers:["Lautaro (xG 0.62/90)","Vlahović (minutes managed)"],
+    explanation:"The Derby d'Italia has gone against form more often than not — both sides are stronger on paper than their head-to-head suggests. Model confidence is capped because low-scoring derbies historically compress the outcome distribution, making this the least certain fixture on the board." },
+];
+const riskColor = { Low:"#8FD14F", Medium:"#FFB020", High:"#FF6B5B" };
+
+function SplitBar({ probs, size="md" }) {
+  const h = size === "lg" ? "h-3" : "h-2";
+  return (
+    <div>
+      <div className={`flex ${h} w-full overflow-hidden rounded-full bg-[#1E2B25]`}>
+        <div style={{width:`${probs.home}%`, background:"#5B8CFF"}} />
+        <div style={{width:`${probs.draw}%`, background:"#7C8C86"}} />
+        <div style={{width:`${probs.away}%`, background:"#FF6B5B"}} />
+      </div>
+      <div className="mt-1.5 flex justify-between font-mono text-[11px] tracking-tight text-[#7C8C86]">
+        <span style={{color:"#5B8CFF"}}>{probs.home}%</span>
+        <span>{probs.draw}%</span>
+        <span style={{color:"#FF6B5B"}}>{probs.away}%</span>
+      </div>
+    </div>
+  );
+}
+function FormPips({ form }) {
+  const color = { W:"#8FD14F", D:"#7C8C86", L:"#FF6B5B" };
+  return (
+    <div className="flex gap-1">
+      {form.map((r,i)=>(
+        <div key={i} className="flex h-4 w-4 items-center justify-center rounded-[3px] font-mono text-[9px] font-bold text-[#0B1210]" style={{background:color[r]}}>{r}</div>
+      ))}
+    </div>
+  );
+}
+function ConfidenceRing({ value }) {
+  const r=18, c=2*Math.PI*r, offset=c-(value/100)*c;
+  return (
+    <div className="relative flex h-12 w-12 items-center justify-center">
+      <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90">
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#1E2B25" strokeWidth="4" />
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#C6FF3D" strokeWidth="4"
+                strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round" />
+      </svg>
+      <span className="absolute font-mono text-[11px] font-semibold text-[#EDF2ED]">{value}</span>
+    </div>
+  );
+}
+function Stat({ label, value }) {
+  return (
+    <div className="rounded-lg bg-[#0B1210] px-2 py-2.5 text-center">
+      <p className="font-mono text-sm font-bold text-[#EDF2ED]">{value}</p>
+      <p className="mt-0.5 text-[10px] text-[#7C8C86]">{label}</p>
+    </div>
+  );
+}
+function MiniBarChart({ data }) {
+  const max = Math.max(...data.map(d=>d.xg));
+  return (
+    <div className="flex h-full items-end gap-3 px-2 pb-1">
+      {data.map((d)=>(
+        <div key={d.name} className="flex flex-1 flex-col items-center gap-1.5">
+          <div className="w-full rounded-t-md bg-[#C6FF3D]" style={{height:`${(d.xg/max)*80}px`}} />
+          <span className="font-mono text-[9px] text-[#7C8C86]">{d.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MatchCard({ m, expanded, onToggle }) {
+  return (
+    <div className="rounded-2xl border border-[#1E2B25] bg-[#121B17] p-4 transition-colors hover:border-[#2A3B33]">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-[#7C8C86]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#C6FF3D]" />{m.league}
+        </div>
+        <span className="font-mono text-[11px] text-[#7C8C86]">{m.kickoff}</span>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex-1">
+          <p className="font-display text-lg font-semibold leading-tight text-[#EDF2ED]">{m.home}</p>
+          <p className="mt-2 font-display text-lg font-semibold leading-tight text-[#EDF2ED]">{m.away}</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <FormPips form={m.form.home} />
+          <FormPips form={m.form.away} />
+        </div>
+      </div>
+      <div className="mt-4"><SplitBar probs={m.probs} size="lg" /></div>
+      <div className="mt-4 flex items-center justify-between border-t border-[#1E2B25] pt-3">
+        <div className="flex items-center gap-3">
+          <ConfidenceRing value={m.confidence} />
+          <div>
+            <p className="text-[11px] text-[#7C8C86]">Confidence</p>
+            <p className="flex items-center gap-1 text-[11px] font-medium" style={{color:riskColor[m.risk]}}>
+              <AlertIcon size={11} /> {m.risk} risk
+            </p>
+          </div>
+        </div>
+        <button onClick={onToggle}
+          className="flex items-center gap-1 rounded-full border border-[#1E2B25] px-3 py-1.5 text-[11px] font-medium text-[#EDF2ED] transition-colors hover:border-[#C6FF3D] hover:text-[#C6FF3D]">
+          Analysis {expanded ? <ChevDownIcon size={13} /> : <ChevRightIcon size={13} />}
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-4 space-y-4 border-t border-[#1E2B25] pt-4">
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><TargetIcon size={12} /> Top correct scores</p>
+            <div className="grid grid-cols-5 gap-1.5">
+              {m.scores.map(s=>(
+                <div key={s.s} className="rounded-lg bg-[#0B1210] py-2 text-center">
+                  <p className="font-mono text-sm font-bold text-[#EDF2ED]">{s.s}</p>
+                  <p className="font-mono text-[10px] text-[#7C8C86]">{s.p}%</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Stat label="Over 2.5" value={`${m.goals.o25}%`} />
+            <Stat label="BTTS" value={`${m.goals.btts}%`} />
+            <Stat label="xG (H–A)" value={`${m.xg.home}–${m.xg.away}`} />
+          </div>
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><UsersIcon size={12} /> Key players</p>
+            <div className="flex flex-wrap gap-2">
+              {m.keyPlayers.map(p=>(<span key={p} className="rounded-full bg-[#0B1210] px-2.5 py-1 text-[11px] text-[#EDF2ED]">{p}</span>))}
+            </div>
+          </div>
+          <div className="rounded-xl bg-[#0B1210] p-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#C6FF3D]"><ActivityIcon size={12} /> Why this prediction</p>
+            <p className="text-[13px] leading-relaxed text-[#B7C4BE]">{m.explanation}</p>
+          </div>
+          <p className="text-[10px] leading-relaxed text-[#5C6B65]">Confidence scores reflect model agreement and historical reliability for similar fixtures, not a guarantee of outcome. Treat all predictions as probabilistic estimates.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [matches, setMatches] = useState(MATCHES_FALLBACK);
+  const [status, setStatus] = useState("loading"); // loading | live | fallback
+  const [expandedId, setExpandedId] = useState(null);
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState("upcoming");
+
+  React.useEffect(() => {
+    fetch("/.netlify/functions/fixtures")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.fixtures && data.fixtures.length > 0) {
+          const built = data.fixtures.map(buildPrediction);
+          setMatches(built);
+          setExpandedId(built[0].id);
+          setStatus("live");
+        } else {
+          setStatus("fallback");
+        }
+      })
+      .catch(() => setStatus("fallback"));
+  }, []);
+
+  const filtered = useMemo(()=>matches.filter(m=>`${m.home} ${m.away} ${m.league}`.toLowerCase().includes(query.toLowerCase())), [query, matches]);
+  const featured = matches[0] || MATCHES_FALLBACK[0];
+  const goalsChartData = matches.slice(0,6).map(m=>({name:m.homeShort+"–"+m.awayShort, xg:m.xg.home+m.xg.away}));
+
+  return (
+    <div className="min-h-screen bg-[#0B1210] font-body text-[#EDF2ED]">
+      <div className="overflow-hidden border-b border-[#1E2B25] bg-[#0E1512] py-2">
+        <div className="ticker flex gap-8 whitespace-nowrap px-4 font-mono text-[11px] text-[#7C8C86]">
+          {[...matches, ...matches].map((m,i)=>(
+            <span key={i} className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#C6FF3D]" /> {m.homeShort} {m.probs.home}% · DRAW {m.probs.draw}% · {m.awayShort} {m.probs.away}%
+            </span>
+          ))}
+        </div>
+      </div>
+      <header className="flex items-center justify-between px-5 py-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C6FF3D] font-display text-sm font-bold text-[#0B1210]">xG</div>
+          <span className="font-display text-lg font-semibold">Pitchline AI</span>
+        </div>
+        <div className="flex items-center gap-3 text-[#7C8C86]"><BellIcon size={18} /><MoonIcon size={18} /></div>
+      </header>
+      <main className="mx-auto max-w-md px-4 pb-16">
+        <div className="mb-4 flex items-center gap-1.5 text-[11px]">
+          {status === "loading" && <span className="text-[#7C8C86]">Loading fixtures…</span>}
+          {status === "live" && <span className="flex items-center gap-1.5 text-[#8FD14F]"><span className="h-1.5 w-1.5 rounded-full bg-[#8FD14F]" />Live fixtures from football-data.org</span>}
+          {status === "fallback" && <span className="flex items-center gap-1.5 text-[#FFB020]"><span className="h-1.5 w-1.5 rounded-full bg-[#FFB020]" />Showing demo data — live API unavailable</span>}
+        </div>
+        <section className="rounded-2xl border border-[#1E2B25] bg-gradient-to-b from-[#121B17] to-[#0E1512] p-5">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#C6FF3D]"><FlameIcon size={12} /> Featured · {featured.league}</div>
+          <div className="mt-4 flex items-end justify-between">
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#1E2B25] font-display text-sm font-bold">{featured.homeShort}</div>
+              <p className="mt-2 max-w-[80px] text-[12px] leading-tight">{featured.home}</p>
+            </div>
+            <div className="mb-2 text-center"><p className="font-display text-2xl font-bold text-[#C6FF3D]">{featured.probs.home}%</p><p className="font-mono text-[10px] text-[#7C8C86]">win prob.</p></div>
+            <div className="mb-2 text-center"><p className="font-display text-xl font-semibold text-[#7C8C86]">vs</p></div>
+            <div className="mb-2 text-center"><p className="font-display text-2xl font-bold text-[#FF6B5B]">{featured.probs.away}%</p><p className="font-mono text-[10px] text-[#7C8C86]">win prob.</p></div>
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#1E2B25] font-display text-sm font-bold">{featured.awayShort}</div>
+              <p className="mt-2 max-w-[80px] text-[12px] leading-tight">{featured.away}</p>
+            </div>
+          </div>
+          <div className="mt-5"><SplitBar probs={featured.probs} size="lg" /></div>
+          <p className="mt-4 text-[12px] leading-relaxed text-[#B7C4BE]">{featured.explanation.slice(0,120)}…</p>
+        </section>
+
+        <section className="mt-6">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><TrendIcon size={12} /> Combined expected goals by fixture</p>
+          <div className="h-36 rounded-2xl border border-[#1E2B25] bg-[#121B17] p-3"><MiniBarChart data={goalsChartData} /></div>
+        </section>
+
+        <section className="mt-6">
+          <div className="flex items-center gap-2 rounded-xl border border-[#1E2B25] bg-[#121B17] px-3 py-2">
+            <SearchIcon size={15} className="text-[#7C8C86]" />
+            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search teams or leagues…"
+              className="w-full bg-transparent text-[13px] text-[#EDF2ED] placeholder-[#5C6B65] outline-none" />
+          </div>
+          <div className="mt-3 flex gap-2">
+            {["upcoming","live","finished"].map(t=>(
+              <button key={t} onClick={()=>setTab(t)}
+                className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium capitalize transition-colors ${tab===t ? "bg-[#C6FF3D] text-[#0B1210]" : "border border-[#1E2B25] text-[#7C8C86]"}`}>{t}</button>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-4 space-y-3">
+          {filtered.map(m=>(
+            <MatchCard key={m.id} m={m} expanded={expandedId===m.id} onToggle={()=>setExpandedId(expandedId===m.id?null:m.id)} />
+          ))}
+          {filtered.length===0 && <p className="py-10 text-center text-[13px] text-[#7C8C86]">No fixtures match "{query}".</p>}
+        </section>
+
+        <div className="mt-8 flex items-center gap-2 rounded-xl border border-dashed border-[#1E2B25] p-3 text-[11px] leading-relaxed text-[#5C6B65]">
+          <ShieldIcon size={14} className="shrink-0" />
+          Predictions are probabilistic model outputs based on historical and current-season data. They are not guarantees of match outcomes.
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
