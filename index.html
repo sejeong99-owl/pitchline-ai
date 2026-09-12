@@ -54,7 +54,6 @@ const Icon = ({ d, size = 16, className = "", strokeWidth = 2 }) => (
 const FlameIcon = (p) => <Icon {...p} d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />;
 const ShieldIcon = (p) => <Icon {...p} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;
 const TrendIcon = (p) => <Icon {...p} d="M23 6l-9.5 9.5-5-5L1 18M17 6h6v6" />;
-const UsersIcon = (p) => <Icon {...p} d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />;
 const ChevDownIcon = (p) => <Icon {...p} d="M6 9l6 6 6-6" />;
 const ChevRightIcon = (p) => <Icon {...p} d="M9 18l6-6-6-6" />;
 const SearchIcon = (p) => <Icon {...p} d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35" />;
@@ -66,6 +65,8 @@ const AlertIcon = (p) => <Icon {...p} d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16
 const ZapIcon = (p) => <Icon {...p} d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />;
 const CrownIcon = (p) => <Icon {...p} d="M2 20h20M4 17l1.5-9L9 12l3-7 3 7 3.5-4L20 17H4z" />;
 const SwordsIcon = (p) => <Icon {...p} d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M19 13l2 2-4 4-2-2M5 21l3-3" />;
+const LayersIcon = (p) => <Icon {...p} d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />;
+const GlobeIcon = (p) => <Icon {...p} d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />;
 
 const riskColor = { Low:"#8FD14F", Medium:"#FFB020", High:"#FF6B5B" };
 
@@ -82,6 +83,30 @@ const MATCHES_FALLBACK = [
 ];
 
 const LEAGUE_ICONS = { "Premier League":"🏴", "La Liga":"🇪🇸", "Serie A":"🇮🇹", "Bundesliga":"🇩🇪", "Ligue 1":"🇫🇷", "Eredivisie":"🇳🇱", "Primeira Liga":"🇵🇹", "Championship":"🥈", "UEFA Champions League":"⭐" };
+
+/* ---------------- Adsterra native banner slot ---------------- */
+function AdSlot() {
+  const ref = React.useRef(null);
+  const injected = React.useRef(false);
+  React.useEffect(() => {
+    if (injected.current || !ref.current) return;
+    injected.current = true;
+    const container = document.createElement("div");
+    container.id = "container-9466bd93dfbc28dd11f94329acb5b9b4-" + Math.random().toString(36).slice(2);
+    ref.current.appendChild(container);
+    const script = document.createElement("script");
+    script.async = true;
+    script.setAttribute("data-cfasync", "false");
+    script.src = "https://pl31300741.profitableratecpmnetwork.com/9466bd93dfbc28dd11f94329acb5b9b4/invoke.js";
+    ref.current.appendChild(script);
+  }, []);
+  return (
+    <div className="my-4">
+      <p className="mb-1.5 text-center text-[9px] uppercase tracking-widest text-[#3A4A43]">Advertisement</p>
+      <div ref={ref} className="min-h-[60px] rounded-xl border border-[#1E2B25]/60 bg-[#0E1512]/40" />
+    </div>
+  );
+}
 
 function SplitBar({ probs, size="md" }) {
   const h = size === "lg" ? "h-3.5" : "h-2";
@@ -301,6 +326,8 @@ function App() {
   const topPick = useMemo(() => matches.reduce((best, m) => (!best || m.confidence > best.confidence) ? m : best, null), [matches]);
   const featured = matches[0] || MATCHES_FALLBACK[0];
   const goalsChartData = matches.slice(0,8).map(m=>({name:m.homeShort+"–"+m.awayShort, xg:m.xg.home+m.xg.away}));
+  const avgConfidence = matches.length ? Math.round(matches.reduce((s,m)=>s+m.confidence,0)/matches.length) : 0;
+  const leagueCount = leagues.length - 1;
 
   return (
     <div className="min-h-screen font-body text-[#EDF2ED]">
@@ -321,11 +348,27 @@ function App() {
         <div className="flex items-center gap-3 text-[#7C8C86]"><BellIcon size={18} /><MoonIcon size={18} /></div>
       </header>
 
-      <main className="mx-auto max-w-md px-4 pb-16">
+      <main className="mx-auto max-w-md px-4 pb-10">
         <div className="mb-4 flex items-center gap-1.5 text-[11px]">
           {status === "loading" && <span className="text-[#7C8C86]">Loading fixtures…</span>}
-          {status === "live" && <span className="flex items-center gap-1.5 text-[#8FD14F]"><span className="h-1.5 w-1.5 rounded-full bg-[#8FD14F] pulse-dot" />Live fixtures · stats-based predictions · {matches.length} matches</span>}
+          {status === "live" && <span className="flex items-center gap-1.5 text-[#8FD14F]"><span className="h-1.5 w-1.5 rounded-full bg-[#8FD14F] pulse-dot" />Live fixtures · stats-based predictions</span>}
           {status === "fallback" && <span className="flex items-center gap-1.5 text-[#FFB020]"><span className="h-1.5 w-1.5 rounded-full bg-[#FFB020]" />Showing demo data — live API unavailable</span>}
+        </div>
+
+        {/* Quick stats strip */}
+        <div className="mb-4 grid grid-cols-3 gap-2 rise-in">
+          <div className="rounded-xl border border-[#1E2B25] bg-[#121B17] p-2.5 text-center">
+            <p className="font-display text-lg font-bold text-[#C6FF3D]">{matches.length}</p>
+            <p className="flex items-center justify-center gap-1 text-[9px] text-[#7C8C86]"><LayersIcon size={10}/> Matches</p>
+          </div>
+          <div className="rounded-xl border border-[#1E2B25] bg-[#121B17] p-2.5 text-center">
+            <p className="font-display text-lg font-bold text-[#5B8CFF]">{leagueCount}</p>
+            <p className="flex items-center justify-center gap-1 text-[9px] text-[#7C8C86]"><GlobeIcon size={10}/> Leagues</p>
+          </div>
+          <div className="rounded-xl border border-[#1E2B25] bg-[#121B17] p-2.5 text-center">
+            <p className="font-display text-lg font-bold text-[#EDF2ED]">{avgConfidence}%</p>
+            <p className="flex items-center justify-center gap-1 text-[9px] text-[#7C8C86]"><ActivityIcon size={10}/> Avg. confidence</p>
+          </div>
         </div>
 
         <section className="relative overflow-hidden rounded-2xl border border-[#1E2B25] bg-gradient-to-b from-[#141F1A] to-[#0E1512] p-5 shadow-[0_0_40px_rgba(198,255,61,0.05)]">
@@ -350,7 +393,9 @@ function App() {
           <p className="relative mt-4 text-[12px] leading-relaxed text-[#B7C4BE]">{featured.verdict}</p>
         </section>
 
-        <section className="mt-6">
+        <AdSlot />
+
+        <section className="mt-2">
           <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><TrendIcon size={12} /> Combined expected goals by fixture</p>
           <div className="h-36 rounded-2xl border border-[#1E2B25] bg-[#121B17] p-3"><MiniBarChart data={goalsChartData} /></div>
         </section>
@@ -374,9 +419,12 @@ function App() {
         </section>
 
         <section className="mt-4 space-y-3">
-          {filtered.map((m) => (
-            <MatchCard key={m.id} m={m} expanded={expandedId===m.id} isTopPick={topPick && m.id === topPick.id}
-              onToggle={()=>setExpandedId(expandedId===m.id?null:m.id)} />
+          {filtered.map((m, idx) => (
+            <React.Fragment key={m.id}>
+              <MatchCard m={m} expanded={expandedId===m.id} isTopPick={topPick && m.id === topPick.id}
+                onToggle={()=>setExpandedId(expandedId===m.id?null:m.id)} />
+              {idx === 3 && filtered.length > 4 && <AdSlot />}
+            </React.Fragment>
           ))}
           {filtered.length===0 && <p className="py-10 text-center text-[13px] text-[#7C8C86]">No fixtures match "{query}".</p>}
         </section>
@@ -386,6 +434,13 @@ function App() {
           Predictions are probabilistic model outputs derived from league-table statistics. They are not guarantees of match outcomes.
         </div>
       </main>
+
+      <footer className="border-t border-[#1E2B25] px-5 py-6 text-center">
+        <div className="mx-auto flex h-7 w-7 items-center justify-center rounded-md bg-[#C6FF3D] font-display text-[11px] font-bold text-[#0B1210]">xG</div>
+        <p className="mt-2 font-display text-sm font-semibold">Pitchline AI</p>
+        <p className="mt-1 text-[11px] text-[#5C6B65]">Statistical football analytics · Powered by football-data.org</p>
+        <p className="mt-3 text-[10px] text-[#3A4A43]">© {new Date().getFullYear()} Pitchline AI. For informational purposes only — not betting advice.</p>
+      </footer>
     </div>
   );
 }
