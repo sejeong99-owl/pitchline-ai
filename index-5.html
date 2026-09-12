@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pitchline AI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body {
+    background:
+      radial-gradient(circle at 15% 0%, rgba(198,255,61,0.08), transparent 40%),
+      radial-gradient(circle at 90% 20%, rgba(91,140,255,0.07), transparent 35%),
+      #0B1210;
+    background-attachment: fixed;
+  }
+  .font-display { font-family:'Space Grotesk',sans-serif; }
+  .font-body { font-family:'Inter',sans-serif; }
+  .font-mono { font-family:'IBM Plex Mono',monospace; }
+  @keyframes scroll { from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  .ticker { animation: scroll 30s linear infinite; }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(198,255,61,0.5); }
+    50% { box-shadow: 0 0 0 5px rgba(198,255,61,0); }
+  }
+  .pulse-dot { animation: pulse-glow 2s ease-in-out infinite; }
+  @keyframes rise {
+    from { opacity:0; transform: translateY(10px); }
+    to { opacity:1; transform: translateY(0); }
+  }
+  .rise-in { animation: rise 0.45s ease-out both; }
+  .card-hover { transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+  .card-hover:active { transform: scale(0.985); }
+  ::-webkit-scrollbar { height: 0; width: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+/* ---- inline SVG icons ---- */
+const Icon = ({ d, size = 16, className = "", strokeWidth = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d={d} />
+  </svg>
+);
+const FlameIcon = (p) => <Icon {...p} d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />;
+const ShieldIcon = (p) => <Icon {...p} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;
+const TrendIcon = (p) => <Icon {...p} d="M23 6l-9.5 9.5-5-5L1 18M17 6h6v6" />;
+const ChevDownIcon = (p) => <Icon {...p} d="M6 9l6 6 6-6" />;
+const ChevRightIcon = (p) => <Icon {...p} d="M9 18l6-6-6-6" />;
+const SearchIcon = (p) => <Icon {...p} d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35" />;
+const BellIcon = (p) => <Icon {...p} d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />;
+const MoonIcon = (p) => <Icon {...p} d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />;
+const ActivityIcon = (p) => <Icon {...p} d="M22 12h-4l-3 9L9 3l-3 9H2" />;
+const TargetIcon = (p) => <Icon {...p} d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />;
+const AlertIcon = (p) => <Icon {...p} d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />;
+const ZapIcon = (p) => <Icon {...p} d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />;
+const CrownIcon = (p) => <Icon {...p} d="M2 20h20M4 17l1.5-9L9 12l3-7 3 7 3.5-4L20 17H4z" />;
+const SwordsIcon = (p) => <Icon {...p} d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M19 13l2 2-4 4-2-2M5 21l3-3" />;
+const LayersIcon = (p) => <Icon {...p} d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />;
+const GlobeIcon = (p) => <Icon {...p} d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />;
+
+const riskColor = { Low:"#8FD14F", Medium:"#FFB020", High:"#FF6B5B" };
+
+/* ---------------- fallback demo data (used only if the live API call fails) ---------------- */
+const MATCHES_FALLBACK = [
+  { id:1, league:"Premier League", home:"Arsenal", away:"Man City", homeShort:"ARS", awayShort:"MCI",
+    kickoff:new Date(Date.now()+3600e3*6).toISOString(), probs:{home:38,draw:26,away:36}, confidence:62, xg:{home:1.7,away:1.9},
+    scores:[{s:"1-1",p:11.2},{s:"1-2",p:9.8},{s:"2-1",p:8.6},{s:"0-1",p:7.9},{s:"1-0",p:7.4}],
+    goals:{o15:74,o25:58,o35:34,btts:64}, goalThreat:{home:{atLeast1:78,atLeast2:39},away:{atLeast1:81,atLeast2:44}},
+    form:{home:["W","W","D","W","L"],away:["W","D","W","W","W"]}, risk:"Medium",
+    keyPlayers:["Demo data — connect API for live stats"],
+    verdict:"Arsenal and Man City are closely matched on current form. Both sides project enough attacking output for a high-scoring game.",
+    explanation:"Demo fixture — live predictions will replace this once the API connection is active." },
+];
+
+const LEAGUE_ICONS = { "Premier League":"🏴", "La Liga":"🇪🇸", "Serie A":"🇮🇹", "Bundesliga":"🇩🇪", "Ligue 1":"🇫🇷", "Eredivisie":"🇳🇱", "Primeira Liga":"🇵🇹", "Championship":"🥈", "UEFA Champions League":"⭐" };
+
+/* ---------------- Adsterra native banner slot ---------------- */
+function AdSlot() {
+  const ref = React.useRef(null);
+  const injected = React.useRef(false);
+  React.useEffect(() => {
+    if (injected.current || !ref.current) return;
+    injected.current = true;
+    const container = document.createElement("div");
+    container.id = "container-9466bd93dfbc28dd11f94329acb5b9b4-" + Math.random().toString(36).slice(2);
+    ref.current.appendChild(container);
+    const script = document.createElement("script");
+    script.async = true;
+    script.setAttribute("data-cfasync", "false");
+    script.src = "https://pl31300741.profitableratecpmnetwork.com/9466bd93dfbc28dd11f94329acb5b9b4/invoke.js";
+    ref.current.appendChild(script);
+  }, []);
+  return (
+    <div className="my-4">
+      <p className="mb-1.5 text-center text-[9px] uppercase tracking-widest text-[#3A4A43]">Advertisement</p>
+      <div ref={ref} className="min-h-[60px] rounded-xl border border-[#1E2B25]/60 bg-[#0E1512]/40" />
+    </div>
+  );
+}
+
+function SplitBar({ probs, size="md" }) {
+  const h = size === "lg" ? "h-3.5" : "h-2";
+  return (
+    <div>
+      <div className={`flex ${h} w-full overflow-hidden rounded-full bg-[#1E2B25] shadow-inner`}>
+        <div className="transition-all duration-700" style={{width:`${probs.home}%`, background:"linear-gradient(90deg,#4472E8,#5B8CFF)"}} />
+        <div className="transition-all duration-700" style={{width:`${probs.draw}%`, background:"#5C6B65"}} />
+        <div className="transition-all duration-700" style={{width:`${probs.away}%`, background:"linear-gradient(90deg,#FF6B5B,#E8493A)"}} />
+      </div>
+      <div className="mt-1.5 flex justify-between font-mono text-[11px] tracking-tight text-[#7C8C86]">
+        <span style={{color:"#5B8CFF"}}>{probs.home}%</span>
+        <span>{probs.draw}%</span>
+        <span style={{color:"#FF6B5B"}}>{probs.away}%</span>
+      </div>
+    </div>
+  );
+}
+function FormPips({ form }) {
+  const color = { W:"#8FD14F", D:"#7C8C86", L:"#FF6B5B", "-":"#3A4A43" };
+  return (
+    <div className="flex gap-1">
+      {form.map((r,i)=>(
+        <div key={i} className="flex h-4 w-4 items-center justify-center rounded-[3px] font-mono text-[9px] font-bold text-[#0B1210]" style={{background:color[r] || "#3A4A43"}}>{r}</div>
+      ))}
+    </div>
+  );
+}
+function ConfidenceRing({ value }) {
+  const r=18, c=2*Math.PI*r, offset=c-(value/100)*c;
+  return (
+    <div className="relative flex h-12 w-12 items-center justify-center">
+      <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90">
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#1E2B25" strokeWidth="4" />
+        <circle cx="24" cy="24" r={r} fill="none" stroke="#C6FF3D" strokeWidth="4"
+                strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round" style={{transition:"stroke-dashoffset 0.8s ease"}} />
+      </svg>
+      <span className="absolute font-mono text-[11px] font-semibold text-[#EDF2ED]">{value}</span>
+    </div>
+  );
+}
+function Stat({ label, value, accent }) {
+  return (
+    <div className="rounded-lg bg-[#0B1210] px-2 py-2.5 text-center border border-[#1E2B25]">
+      <p className="font-mono text-sm font-bold" style={{color: accent || "#EDF2ED"}}>{value}</p>
+      <p className="mt-0.5 text-[10px] text-[#7C8C86]">{label}</p>
+    </div>
+  );
+}
+function StrengthBar({ label, home, away }) {
+  const total = home + away || 1;
+  return (
+    <div>
+      <div className="flex justify-between text-[10px] text-[#7C8C86] mb-1">
+        <span>{label}</span>
+      </div>
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-[#0B1210]">
+        <div className="bg-[#5B8CFF]" style={{width:`${(home/total)*100}%`}} />
+        <div className="bg-[#FF6B5B]" style={{width:`${(away/total)*100}%`}} />
+      </div>
+    </div>
+  );
+}
+function MiniBarChart({ data }) {
+  const max = Math.max(...data.map(d=>d.xg), 1);
+  return (
+    <div className="flex h-full items-end gap-2.5 px-2 pb-1 overflow-x-auto">
+      {data.map((d)=>(
+        <div key={d.name} className="flex flex-1 min-w-[42px] flex-col items-center gap-1.5">
+          <div className="w-full rounded-t-md" style={{height:`${(d.xg/max)*80}px`, background:"linear-gradient(180deg,#C6FF3D,#8FD14F)"}} />
+          <span className="font-mono text-[9px] text-[#7C8C86] whitespace-nowrap">{d.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MatchCard({ m, expanded, onToggle, isTopPick }) {
+  return (
+    <div className={`rise-in rounded-2xl border bg-[#121B17] p-4 card-hover ${isTopPick ? "border-[#C6FF3D]/50" : "border-[#1E2B25]"}`}>
+      {isTopPick && (
+        <div className="mb-2 -mt-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[#C6FF3D]">
+          <CrownIcon size={11} /> Top confidence pick
+        </div>
+      )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-[#7C8C86]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#C6FF3D] pulse-dot" />
+          <span>{LEAGUE_ICONS[m.league] || "⚽"} {m.league}</span>
+        </div>
+        <span className="font-mono text-[11px] text-[#7C8C86]">
+          {new Date(m.kickoff).toLocaleDateString(undefined,{month:"short",day:"numeric"})} · {new Date(m.kickoff).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex-1">
+          <p className="font-display text-lg font-semibold leading-tight text-[#EDF2ED]">{m.home}</p>
+          <p className="mt-2 font-display text-lg font-semibold leading-tight text-[#EDF2ED]">{m.away}</p>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <FormPips form={m.form.home} />
+          <FormPips form={m.form.away} />
+        </div>
+      </div>
+
+      <div className="mt-4"><SplitBar probs={m.probs} size="lg" /></div>
+
+      <div className="mt-3 rounded-lg bg-[#0B1210]/60 border border-[#1E2B25] px-3 py-2 flex items-start gap-2">
+        <SwordsIcon size={13} className="mt-0.5 shrink-0 text-[#C6FF3D]" />
+        <p className="text-[11.5px] leading-snug text-[#B7C4BE]">{m.verdict}</p>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between border-t border-[#1E2B25] pt-3">
+        <div className="flex items-center gap-3">
+          <ConfidenceRing value={m.confidence} />
+          <div>
+            <p className="text-[11px] text-[#7C8C86]">Confidence</p>
+            <p className="flex items-center gap-1 text-[11px] font-medium" style={{color:riskColor[m.risk]}}>
+              <AlertIcon size={11} /> {m.risk} risk
+            </p>
+          </div>
+        </div>
+        <button onClick={onToggle}
+          className="flex items-center gap-1 rounded-full border border-[#1E2B25] px-3 py-1.5 text-[11px] font-medium text-[#EDF2ED] transition-colors hover:border-[#C6FF3D] hover:text-[#C6FF3D]">
+          Analysis {expanded ? <ChevDownIcon size={13} /> : <ChevRightIcon size={13} />}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-4 space-y-4 border-t border-[#1E2B25] pt-4 rise-in">
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><TargetIcon size={12} /> Top correct scores</p>
+            <div className="grid grid-cols-5 gap-1.5">
+              {m.scores.map(s=>(
+                <div key={s.s} className="rounded-lg bg-[#0B1210] py-2 text-center border border-[#1E2B25]">
+                  <p className="font-mono text-sm font-bold text-[#EDF2ED]">{s.s}</p>
+                  <p className="font-mono text-[10px] text-[#7C8C86]">{s.p}%</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><ZapIcon size={12} /> Goal markets</p>
+            <div className="grid grid-cols-4 gap-2">
+              <Stat label="O1.5" value={`${m.goals.o15}%`} />
+              <Stat label="O2.5" value={`${m.goals.o25}%`} />
+              <Stat label="O3.5" value={`${m.goals.o35}%`} />
+              <Stat label="BTTS" value={`${m.goals.btts}%`} accent="#C6FF3D" />
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><TrendIcon size={12} /> Goal threat</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-[#0B1210] p-2.5 border border-[#1E2B25]">
+                <p className="text-[10px] text-[#7C8C86] mb-1 truncate">{m.homeShort} to score</p>
+                <p className="font-mono text-sm font-bold text-[#5B8CFF]">{m.goalThreat.home.atLeast1}% <span className="text-[10px] text-[#7C8C86] font-normal">1+</span></p>
+                <p className="font-mono text-xs text-[#7C8C86]">{m.goalThreat.home.atLeast2}% for 2+</p>
+              </div>
+              <div className="rounded-lg bg-[#0B1210] p-2.5 border border-[#1E2B25]">
+                <p className="text-[10px] text-[#7C8C86] mb-1 truncate">{m.awayShort} to score</p>
+                <p className="font-mono text-sm font-bold text-[#FF6B5B]">{m.goalThreat.away.atLeast1}% <span className="text-[10px] text-[#7C8C86] font-normal">1+</span></p>
+                <p className="font-mono text-xs text-[#7C8C86]">{m.goalThreat.away.atLeast2}% for 2+</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <StrengthBar label={`Attack: ${m.homeShort} vs ${m.awayShort}`} home={m.xg.home} away={m.xg.away} />
+          </div>
+
+          <div className="rounded-xl bg-[#0B1210] p-3 border border-[#1E2B25]">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#C6FF3D]"><ActivityIcon size={12} /> Why this prediction</p>
+            <p className="text-[13px] leading-relaxed text-[#B7C4BE]">{m.explanation}</p>
+          </div>
+
+          <p className="text-[10px] leading-relaxed text-[#5C6B65]">
+            Confidence scores reflect model agreement and data sample size, not a guarantee of outcome. Treat all predictions as probabilistic estimates.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [matches, setMatches] = useState(MATCHES_FALLBACK);
+  const [status, setStatus] = useState("loading");
+  const [expandedId, setExpandedId] = useState(null);
+  const [query, setQuery] = useState("");
+  const [leagueFilter, setLeagueFilter] = useState("All");
+
+  React.useEffect(() => {
+    fetch("/.netlify/functions/fixtures")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.fixtures && data.fixtures.length > 0) {
+          setMatches(data.fixtures);
+          setExpandedId(data.fixtures[0].id);
+          setStatus("live");
+        } else {
+          setStatus("fallback");
+        }
+      })
+      .catch(() => setStatus("fallback"));
+  }, []);
+
+  const leagues = useMemo(() => ["All", ...Array.from(new Set(matches.map(m => m.league)))], [matches]);
+
+  const filtered = useMemo(() => matches.filter(m =>
+    `${m.home} ${m.away} ${m.league}`.toLowerCase().includes(query.toLowerCase()) &&
+    (leagueFilter === "All" || m.league === leagueFilter)
+  ), [query, matches, leagueFilter]);
+
+  const topPick = useMemo(() => matches.reduce((best, m) => (!best || m.confidence > best.confidence) ? m : best, null), [matches]);
+  const featured = matches[0] || MATCHES_FALLBACK[0];
+  const goalsChartData = matches.slice(0,8).map(m=>({name:m.homeShort+"–"+m.awayShort, xg:m.xg.home+m.xg.away}));
+  const avgConfidence = matches.length ? Math.round(matches.reduce((s,m)=>s+m.confidence,0)/matches.length) : 0;
+  const leagueCount = leagues.length - 1;
+
+  return (
+    <div className="min-h-screen font-body text-[#EDF2ED]">
+      <div className="overflow-hidden border-b border-[#1E2B25] bg-[#0E1512] py-2">
+        <div className="ticker flex gap-8 whitespace-nowrap px-4 font-mono text-[11px] text-[#7C8C86]">
+          {[...matches, ...matches].map((m,i)=>(
+            <span key={i} className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#C6FF3D]" /> {m.homeShort} {m.probs.home}% · DRAW {m.probs.draw}% · {m.awayShort} {m.probs.away}%
+            </span>
+          ))}
+        </div>
+      </div>
+      <header className="flex items-center justify-between px-5 py-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#C6FF3D] font-display text-sm font-bold text-[#0B1210] shadow-[0_0_18px_rgba(198,255,61,0.35)]">xG</div>
+          <span className="font-display text-lg font-bold tracking-tight">Pitchline AI</span>
+        </div>
+        <div className="flex items-center gap-3 text-[#7C8C86]"><BellIcon size={18} /><MoonIcon size={18} /></div>
+      </header>
+
+      <main className="mx-auto max-w-md px-4 pb-10">
+        <div className="mb-4 flex items-center gap-1.5 text-[11px]">
+          {status === "loading" && <span className="text-[#7C8C86]">Loading fixtures…</span>}
+          {status === "live" && <span className="flex items-center gap-1.5 text-[#8FD14F]"><span className="h-1.5 w-1.5 rounded-full bg-[#8FD14F] pulse-dot" />Live fixtures · stats-based predictions</span>}
+          {status === "fallback" && <span className="flex items-center gap-1.5 text-[#FFB020]"><span className="h-1.5 w-1.5 rounded-full bg-[#FFB020]" />Showing demo data — live API unavailable</span>}
+        </div>
+
+        {/* Quick stats strip */}
+        <div className="mb-4 grid grid-cols-3 gap-2 rise-in">
+          <div className="rounded-xl border border-[#1E2B25] bg-[#121B17] p-2.5 text-center">
+            <p className="font-display text-lg font-bold text-[#C6FF3D]">{matches.length}</p>
+            <p className="flex items-center justify-center gap-1 text-[9px] text-[#7C8C86]"><LayersIcon size={10}/> Matches</p>
+          </div>
+          <div className="rounded-xl border border-[#1E2B25] bg-[#121B17] p-2.5 text-center">
+            <p className="font-display text-lg font-bold text-[#5B8CFF]">{leagueCount}</p>
+            <p className="flex items-center justify-center gap-1 text-[9px] text-[#7C8C86]"><GlobeIcon size={10}/> Leagues</p>
+          </div>
+          <div className="rounded-xl border border-[#1E2B25] bg-[#121B17] p-2.5 text-center">
+            <p className="font-display text-lg font-bold text-[#EDF2ED]">{avgConfidence}%</p>
+            <p className="flex items-center justify-center gap-1 text-[9px] text-[#7C8C86]"><ActivityIcon size={10}/> Avg. confidence</p>
+          </div>
+        </div>
+
+        <section className="relative overflow-hidden rounded-2xl border border-[#1E2B25] bg-gradient-to-b from-[#141F1A] to-[#0E1512] p-5 shadow-[0_0_40px_rgba(198,255,61,0.05)]">
+          <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-[#C6FF3D]/10 blur-3xl" />
+          <div className="relative flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#C6FF3D]">
+            <FlameIcon size={12} /> Featured · {featured.league}
+          </div>
+          <div className="relative mt-4 flex items-end justify-between">
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#1E2B25] font-display text-sm font-bold ring-1 ring-[#2A3B33]">{featured.homeShort}</div>
+              <p className="mt-2 max-w-[80px] text-[12px] leading-tight">{featured.home}</p>
+            </div>
+            <div className="mb-2 text-center"><p className="font-display text-2xl font-bold text-[#C6FF3D]">{featured.probs.home}%</p><p className="font-mono text-[10px] text-[#7C8C86]">win prob.</p></div>
+            <div className="mb-2 text-center"><p className="font-display text-xl font-semibold text-[#7C8C86]">vs</p></div>
+            <div className="mb-2 text-center"><p className="font-display text-2xl font-bold text-[#FF6B5B]">{featured.probs.away}%</p><p className="font-mono text-[10px] text-[#7C8C86]">win prob.</p></div>
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#1E2B25] font-display text-sm font-bold ring-1 ring-[#2A3B33]">{featured.awayShort}</div>
+              <p className="mt-2 max-w-[80px] text-[12px] leading-tight">{featured.away}</p>
+            </div>
+          </div>
+          <div className="relative mt-5"><SplitBar probs={featured.probs} size="lg" /></div>
+          <p className="relative mt-4 text-[12px] leading-relaxed text-[#B7C4BE]">{featured.verdict}</p>
+        </section>
+
+        <AdSlot />
+
+        <section className="mt-2">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-[#7C8C86]"><TrendIcon size={12} /> Combined expected goals by fixture</p>
+          <div className="h-36 rounded-2xl border border-[#1E2B25] bg-[#121B17] p-3"><MiniBarChart data={goalsChartData} /></div>
+        </section>
+
+        <section className="mt-6">
+          <div className="flex items-center gap-2 rounded-xl border border-[#1E2B25] bg-[#121B17] px-3 py-2">
+            <SearchIcon size={15} className="text-[#7C8C86]" />
+            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search teams or leagues…"
+              className="w-full bg-transparent text-[13px] text-[#EDF2ED] placeholder-[#5C6B65] outline-none" />
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {leagues.map((l) => (
+              <button key={l} onClick={() => setLeagueFilter(l)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-colors whitespace-nowrap ${
+                  leagueFilter === l ? "bg-[#C6FF3D] text-[#0B1210]" : "border border-[#1E2B25] text-[#7C8C86]"
+                }`}>
+                {l !== "All" ? (LEAGUE_ICONS[l] || "⚽") + " " : ""}{l}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-4 space-y-3">
+          {filtered.map((m, idx) => (
+            <React.Fragment key={m.id}>
+              <MatchCard m={m} expanded={expandedId===m.id} isTopPick={topPick && m.id === topPick.id}
+                onToggle={()=>setExpandedId(expandedId===m.id?null:m.id)} />
+              {idx === 3 && filtered.length > 4 && <AdSlot />}
+            </React.Fragment>
+          ))}
+          {filtered.length===0 && <p className="py-10 text-center text-[13px] text-[#7C8C86]">No fixtures match "{query}".</p>}
+        </section>
+
+        <div className="mt-8 flex items-center gap-2 rounded-xl border border-dashed border-[#1E2B25] p-3 text-[11px] leading-relaxed text-[#5C6B65]">
+          <ShieldIcon size={14} className="shrink-0" />
+          Predictions are probabilistic model outputs derived from league-table statistics. They are not guarantees of match outcomes.
+        </div>
+      </main>
+
+      <footer className="border-t border-[#1E2B25] px-5 py-6 text-center">
+        <div className="mx-auto flex h-7 w-7 items-center justify-center rounded-md bg-[#C6FF3D] font-display text-[11px] font-bold text-[#0B1210]">xG</div>
+        <p className="mt-2 font-display text-sm font-semibold">Pitchline AI</p>
+        <p className="mt-1 text-[11px] text-[#5C6B65]">Statistical football analytics · Powered by football-data.org</p>
+        <p className="mt-3 text-[10px] text-[#3A4A43]">© {new Date().getFullYear()} Pitchline AI. For informational purposes only — not betting advice.</p>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
